@@ -7,10 +7,9 @@ A comprehensive fitness tracking platform that empowers users to monitor their w
 1. [Overview](#overview)
 2. [Features](#features)
 3. [Technology Stack](#technology-stack)
-4. [API Documentation](#api-documentation)
-5. [Project Structure](#project-structure)
-6. [Setup and Installation](#setup-and-installation)
-7. [Running the Application](#running-the-application)
+4. [Project Structure](#project-structure)
+5. [Setup and Installation](#setup-and-installation)
+6. [Running the Application](#running-the-application)
 
 ## Overview
 
