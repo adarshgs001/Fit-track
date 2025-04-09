@@ -1,14 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { 
-  DashboardIcon, 
-  WorkoutIcon, 
-  ExerciseIcon, 
-  DietIcon, 
-  ProgressIcon,
-  SettingsIcon,
-  UserIcon
-} from "@/components/ui/icons";
+import { DashboardIcon, WorkoutIcon, ExerciseIcon, DietIcon, ProgressIcon } from "@/components/ui/icons";
 
 interface TabNavigationProps {
   activeTab: string;
@@ -55,20 +47,23 @@ export default function TabNavigation({ activeTab, setActiveTab }: TabNavigation
       name: "Progress",
       icon: <ProgressIcon className="text-sm mr-1 align-text-bottom h-4 w-4" />,
       path: "/progress"
-    },
-    {
-      id: "profile",
-      name: "Profile",
-      icon: <UserIcon className="text-sm mr-1 align-text-bottom h-4 w-4" />,
-      path: "/profile"
-    },
-    {
-      id: "settings",
-      name: "Settings",
-      icon: <SettingsIcon className="text-sm mr-1 align-text-bottom h-4 w-4" />,
-      path: "/settings"
     }
   ];
+  
+  // Set active tab based on current location
+  React.useEffect(() => {
+    const path = location.startsWith('/workouts/plans') ? '/workouts' : 
+                 location.startsWith('/exercises/') ? '/exercises' : 
+                 location;
+    
+    const activeTab = tabs.find(tab => tab.path === path || 
+                                       (path === '/' && tab.path === '/') || 
+                                       (path !== '/' && tab.path !== '/' && path.startsWith(tab.path)));
+    
+    if (activeTab) {
+      setActiveTab(activeTab.id);
+    }
+  }, [location, setActiveTab]);
 
   const handleTabClick = (tab: Tab) => {
     setActiveTab(tab.id);

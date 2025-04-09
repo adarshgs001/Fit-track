@@ -2,47 +2,70 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { BarChart } from "@/components/ui/chart";
+import { useProgress } from "@/contexts/ProgressContext";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SleepTracker() {
-  // Mock data for sleep quality
-  const sleepData = [
-    { day: "Mon", hours: 7.5, quality: 80 },
-    { day: "Tue", hours: 8, quality: 85 },
-    { day: "Wed", hours: 6.5, quality: 60 },
-    { day: "Thu", hours: 7, quality: 75 },
-    { day: "Fri", hours: 8.5, quality: 90 },
-    { day: "Sat", hours: 9, quality: 95 },
-    { day: "Sun", hours: 7.5, quality: 80 },
-  ];
-
-  // Calculate sleep quality score (average of the week)
-  const avgQuality = sleepData.reduce((sum, day) => sum + day.quality, 0) / sleepData.length;
+  const { getSleepData, getSleepSummary, logSleep, isLoading } = useProgress();
+  const { toast } = useToast();
   
-  // Calculate average sleep hours
-  const avgHours = sleepData.reduce((sum, day) => sum + day.hours, 0) / sleepData.length;
+  // Get sleep data from context
+  const sleepData = getSleepData();
+  const { avgQuality, avgHours } = getSleepSummary();
+
+  // Mock function to log sleep - in a real app, this would open a dialog
+  const handleLogSleep = async () => {
+    try {
+      // For demo purposes, we'll just log 8 hours with 85% quality
+      // In a real app, this would come from a form
+      await logSleep(8, 85);
+      toast({
+        title: "Sleep logged",
+        description: "Your sleep data has been recorded.",
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to log sleep",
+        description: "An error occurred while logging your sleep data.",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <Card className="col-span-1">
       <CardHeader className="pb-2">
-        <CardTitle className="text-md flex items-center">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-5 w-5 text-blue-500 mr-2"
+        <CardTitle className="text-md flex items-center justify-between">
+          <div className="flex items-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-5 w-5 text-blue-500 mr-2"
+            >
+              <path d="M12 21.39A10.5 10.5 0 1 1 22.5 10.5" />
+              <path d="M11 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
+              <path d="M12 8v1" />
+              <path d="M12 15v1" />
+              <path d="M16 12h-1" />
+              <path d="M9 12H8" />
+            </svg>
+            Sleep Tracker
+          </div>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            className="text-xs"
+            onClick={handleLogSleep}
+            disabled={isLoading}
           >
-            <path d="M12 21.39A10.5 10.5 0 1 1 22.5 10.5" />
-            <path d="M11 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" />
-            <path d="M12 8v1" />
-            <path d="M12 15v1" />
-            <path d="M16 12h-1" />
-            <path d="M9 12H8" />
-          </svg>
-          Sleep Tracker
+            Log Sleep
+          </Button>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -67,7 +90,7 @@ export default function SleepTracker() {
             <div className="flex items-center">
               {sleepData.map((day, i) => (
                 <div 
-                  key={day.day} 
+                  key={`${day.day}-${i}`} 
                   className="flex-1 flex flex-col items-center"
                 >
                   <div 
@@ -77,8 +100,8 @@ export default function SleepTracker() {
                     <div 
                       className="bg-blue-500 w-full" 
                       style={{ 
-                        height: `${(day.hours / 12) * 100}%`,
-                        marginTop: `${100 - (day.hours / 12) * 100}%`
+                        height: `${day.hours > 0 ? (day.hours / 12) * 100 : 0}%`,
+                        marginTop: `${day.hours > 0 ? 100 - (day.hours / 12) * 100 : 100}%`
                       }}
                     />
                   </div>

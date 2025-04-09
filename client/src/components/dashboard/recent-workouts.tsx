@@ -2,20 +2,22 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WorkoutIcon, RunIcon, ExerciseIcon } from "@/components/ui/icons";
-import { useQuery } from "@tanstack/react-query";
 import type { Workout } from "@shared/schema";
 import { Link } from "wouter";
 import { format, formatDistanceToNow } from 'date-fns';
+import { useWorkout } from "@/contexts/AppContext";
 
 interface RecentWorkoutsProps {
   userId: number;
 }
 
 export default function RecentWorkouts({ userId }: RecentWorkoutsProps) {
-  const { data: recentWorkouts, isLoading, error } = useQuery({
-    queryKey: [`/api/users/${userId}/recent-workouts`],
-    staleTime: 60000, // 1 minute
-  });
+  // Use our workout context
+  const { 
+    recentWorkouts, 
+    isLoading, 
+    error 
+  } = useWorkout();
 
   const getWorkoutIcon = (name: string) => {
     if (name.toLowerCase().includes('cardio') || name.toLowerCase().includes('hiit')) {

@@ -1,14 +1,6 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
-import { 
-  DashboardIcon, 
-  WorkoutIcon, 
-  ExerciseIcon, 
-  DietIcon, 
-  ProgressIcon, 
-  UserIcon,
-  SettingsIcon 
-} from "@/components/ui/icons";
+import { DashboardIcon, WorkoutIcon, ExerciseIcon, DietIcon, ProgressIcon } from "@/components/ui/icons";
 
 interface MobileNavbarProps {
   activeTab: string;
@@ -51,12 +43,27 @@ export default function MobileNavbar({ activeTab, setActiveTab }: MobileNavbarPr
       path: "/diet"
     },
     {
-      id: "profile",
-      name: "Profile",
-      icon: <UserIcon className="h-5 w-5" />,
-      path: "/profile"
+      id: "progress",
+      name: "Progress",
+      icon: <ProgressIcon className="h-5 w-5" />,
+      path: "/progress"
     }
   ];
+  
+  // Set active tab based on current location
+  React.useEffect(() => {
+    const path = location.startsWith('/workouts/plans') ? '/workouts' : 
+                 location.startsWith('/exercises/') ? '/exercises' : 
+                 location;
+    
+    const activeNavItem = navItems.find(item => item.path === path || 
+                                             (path === '/' && item.path === '/') || 
+                                             (path !== '/' && item.path !== '/' && path.startsWith(item.path)));
+    
+    if (activeNavItem) {
+      setActiveTab(activeNavItem.id);
+    }
+  }, [location, setActiveTab]);
 
   const handleNavItemClick = (item: NavItem) => {
     setActiveTab(item.id);

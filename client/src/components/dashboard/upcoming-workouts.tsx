@@ -2,32 +2,26 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { WorkoutIcon, RunIcon, EditIcon, TrashIcon } from "@/components/ui/icons";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { queryClient, apiRequest } from "@/lib/queryClient";
 import type { Workout } from "@shared/schema";
 import { Link } from "wouter";
 import { format } from 'date-fns';
 import { Progress } from "@/components/ui/progress";
+import { useWorkout } from "@/contexts/AppContext";
 
 interface UpcomingWorkoutsProps {
   userId: number;
 }
 
 export default function UpcomingWorkouts({ userId }: UpcomingWorkoutsProps) {
-  const { data: upcomingWorkouts, isLoading, error } = useQuery({
-    queryKey: [`/api/users/${userId}/upcoming-workouts`],
-    staleTime: 60000, // 1 minute
-  });
-
-  const deleteWorkoutMutation = useMutation({
-    mutationFn: async (workoutId: number) => {
-      await apiRequest("DELETE", `/api/workouts/${workoutId}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/users/${userId}/upcoming-workouts`] });
-    }
-  });
-
+  // Use our workout context
+  const { 
+    upcomingWorkouts, 
+    isLoading, 
+    error,
+    deleteWorkout
+  } = useWorkout();
+  
+  // Handle workout deletion
   const getWorkoutIcon = (name: string) => {
     if (name.toLowerCase().includes('cardio')) {
       return <RunIcon className="text-secondary" />;
@@ -59,9 +53,10 @@ export default function UpcomingWorkouts({ userId }: UpcomingWorkoutsProps) {
     }
   };
 
+  // Handle workout deletion
   const handleDeleteWorkout = (workoutId: number) => {
     if (confirm("Are you sure you want to delete this workout?")) {
-      deleteWorkoutMutation.mutate(workoutId);
+      deleteWorkout(workoutId);
     }
   };
 
@@ -99,7 +94,7 @@ export default function UpcomingWorkouts({ userId }: UpcomingWorkoutsProps) {
                     size="sm" 
                     className="text-slate-400 hover:text-red-500 p-1 h-auto"
                     onClick={() => handleDeleteWorkout(workout.id)}
-                    disabled={deleteWorkoutMutation.isPending}
+                    disabled={false}
                   >
                     <TrashIcon className="h-4 w-4" />
                   </Button>

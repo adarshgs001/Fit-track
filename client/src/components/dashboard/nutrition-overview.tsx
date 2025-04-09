@@ -2,24 +2,23 @@ import React from "react";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import { useDiet } from "@/contexts/AppContext";
 
-interface NutritionOverviewProps {
-  userId: number;
-}
-
-export default function NutritionOverview({ userId }: NutritionOverviewProps) {
-  const { data: activeDietPlan, isLoading: isLoadingDietPlan } = useQuery({
-    queryKey: [`/api/users/${userId}/active-diet-plan`],
-    staleTime: 60000, // 1 minute
-  });
-
-  const { data: todaysMeals, isLoading: isLoadingMeals } = useQuery({
-    queryKey: [`/api/users/${userId}/meals`, { date: format(new Date(), 'yyyy-MM-dd') }],
-    staleTime: 30000, // 30 seconds
-  });
+export default function NutritionOverview() {
+  // Use our diet context
+  const { 
+    activeDietPlan, 
+    meals, 
+    isLoading,
+    getMealsByDate
+  } = useDiet();
+  
+  // Get today's meals
+  const today = new Date();
+  const todayFormatted = format(today, 'yyyy-MM-dd');
+  const todaysMeals = getMealsByDate(today);
 
   const calculateNutritionSummary = () => {
     if (!todaysMeals || todaysMeals.length === 0) {
@@ -57,7 +56,7 @@ export default function NutritionOverview({ userId }: NutritionOverviewProps) {
         <CardTitle className="text-lg leading-6 font-medium text-slate-900">Today's Nutrition</CardTitle>
       </CardHeader>
       <CardContent className="p-4">
-        {isLoadingDietPlan || isLoadingMeals ? (
+        {isLoading ? (
           <div className="text-center py-4 text-slate-500">Loading nutrition data...</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -78,39 +77,36 @@ export default function NutritionOverview({ userId }: NutritionOverviewProps) {
                   <div className="flex justify-between mb-1">
                     <h5 className="text-xs font-medium text-slate-500">Carbs</h5>
                     <p className="text-xs font-medium text-slate-500">
-                      {Math.round(nutrition.totalCarbs)}g / {Math.round(nutrition.carbsGoal)}g
+                      {Math.round(nutrition.totalCarbs)}g / {Math.round(nutrition.carbsGoal || 0)}g
                     </p>
                   </div>
                   <Progress 
-                    value={(nutrition.totalCarbs / nutrition.carbsGoal) * 100} 
+                    value={(nutrition.totalCarbs / (nutrition.carbsGoal || 1)) * 100} 
                     className="h-1.5 bg-slate-200" 
-                    indicatorClassName="bg-blue-500" 
                   />
                 </div>
                 <div>
                   <div className="flex justify-between mb-1">
                     <h5 className="text-xs font-medium text-slate-500">Protein</h5>
                     <p className="text-xs font-medium text-slate-500">
-                      {Math.round(nutrition.totalProtein)}g / {Math.round(nutrition.proteinGoal)}g
+                      {Math.round(nutrition.totalProtein)}g / {Math.round(nutrition.proteinGoal || 0)}g
                     </p>
                   </div>
                   <Progress 
-                    value={(nutrition.totalProtein / nutrition.proteinGoal) * 100} 
+                    value={(nutrition.totalProtein / (nutrition.proteinGoal || 1)) * 100} 
                     className="h-1.5 bg-slate-200" 
-                    indicatorClassName="bg-green-500" 
                   />
                 </div>
                 <div>
                   <div className="flex justify-between mb-1">
                     <h5 className="text-xs font-medium text-slate-500">Fat</h5>
                     <p className="text-xs font-medium text-slate-500">
-                      {Math.round(nutrition.totalFat)}g / {Math.round(nutrition.fatGoal)}g
+                      {Math.round(nutrition.totalFat)}g / {Math.round(nutrition.fatGoal || 0)}g
                     </p>
                   </div>
                   <Progress 
-                    value={(nutrition.totalFat / nutrition.fatGoal) * 100} 
+                    value={(nutrition.totalFat / (nutrition.fatGoal || 1)) * 100} 
                     className="h-1.5 bg-slate-200" 
-                    indicatorClassName="bg-yellow-500" 
                   />
                 </div>
               </div>

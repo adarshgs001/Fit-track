@@ -1,13 +1,28 @@
 import React from "react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { useProgress } from "@/contexts/ProgressContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function WaterTracker() {
-  // Mock data for water intake
-  const waterData = {
-    current: 1.4, // liters
-    goal: 2.5, // liters
-    percentage: 56, // (1.4 / 2.5) * 100
+  const { getWaterData, logWaterIntake, isLoading } = useProgress();
+  const { toast } = useToast();
+  const waterData = getWaterData();
+
+  const handleLogWater = async (amount: number) => {
+    try {
+      await logWaterIntake(amount);
+      toast({
+        title: "Water logged",
+        description: `Added ${amount}L to your water intake.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Failed to log water",
+        description: "An error occurred while logging your water intake.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -33,7 +48,7 @@ export default function WaterTracker() {
         <div className="relative pt-2">
           <div className="mb-6 flex justify-between text-sm">
             <div>
-              <span className="text-3xl font-bold">{waterData.current}L</span>
+              <span className="text-3xl font-bold">{waterData.current.toFixed(1)}L</span>
               <div className="text-muted-foreground text-xs mt-1">of {waterData.goal}L goal</div>
             </div>
             <div className="text-right">
@@ -70,6 +85,8 @@ export default function WaterTracker() {
               variant="outline"
               size="sm"
               className="flex-1 text-sm"
+              onClick={() => handleLogWater(0.1)}
+              disabled={isLoading}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -89,6 +106,8 @@ export default function WaterTracker() {
               variant="outline"
               size="sm"
               className="flex-1 text-sm"
+              onClick={() => handleLogWater(0.25)}
+              disabled={isLoading}
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"

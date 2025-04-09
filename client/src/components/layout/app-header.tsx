@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { User, Settings, LogOut } from "lucide-react";
+import { useUser } from "@/contexts/UserContext";
 
 interface User {
   id: number;
@@ -26,6 +27,7 @@ interface AppHeaderProps {
 
 export default function AppHeader({ user }: AppHeaderProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { logout } = useUser();
 
   return (
     <header className="bg-white shadow-sm">
@@ -81,7 +83,10 @@ export default function AppHeader({ user }: AppHeaderProps) {
                     </DropdownMenuItem>
                   </Link>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="cursor-pointer text-red-500 hover:text-red-500">
+                  <DropdownMenuItem 
+                    className="cursor-pointer text-red-500 hover:text-red-500"
+                    onClick={logout}
+                  >
                     <LogOut className="mr-2 h-4 w-4" />
                     <span>Logout</span>
                   </DropdownMenuItem>

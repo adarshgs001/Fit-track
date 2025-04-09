@@ -1,24 +1,49 @@
 import React, { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { SearchIcon, FilterIcon } from "@/components/ui/icons";
+import { 
+  SearchIcon, 
+  FilterIcon,
+} from "@/components/ui/icons";
 import { useQuery } from "@tanstack/react-query";
 import type { ExerciseCategory } from "@shared/schema";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
 interface ExerciseFiltersProps {
   onSearch: (query: string) => void;
   onCategoryChange: (categoryId: number | null) => void;
   selectedCategoryId: number | null;
+  onDifficultyChange?: (difficulty: string | null) => void;
+  onMuscleGroupChange?: (muscleGroup: string | null) => void;
+  selectedDifficulty?: string | null;
+  selectedMuscleGroup?: string | null;
 }
+
+const DIFFICULTIES = ["Beginner", "Intermediate", "Advanced"];
+const MUSCLE_GROUPS = ["Chest", "Back", "Shoulders", "Arms", "Legs", "Core", "Full Body"];
 
 export default function ExerciseFilters({ 
   onSearch, 
   onCategoryChange, 
-  selectedCategoryId 
+  selectedCategoryId,
+  onDifficultyChange = () => {},
+  onMuscleGroupChange = () => {},
+  selectedDifficulty = null,
+  selectedMuscleGroup = null
 }: ExerciseFiltersProps) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [filtersVisible, setFiltersVisible] = useState(false);
   
-  const { data: categories, isLoading } = useQuery({
+  const { data: categories, isLoading } = useQuery<ExerciseCategory[]>({
     queryKey: ['/api/exercise-categories'],
     staleTime: 3600000, // 1 hour
   });
@@ -35,6 +60,27 @@ export default function ExerciseFilters({
   const handleCategoryClick = (categoryId: number | null) => {
     onCategoryChange(categoryId === selectedCategoryId ? null : categoryId);
   };
+
+  const handleDifficultySelect = (difficulty: string) => {
+    onDifficultyChange(difficulty === selectedDifficulty ? null : difficulty);
+  };
+
+  const handleMuscleGroupSelect = (muscleGroup: string) => {
+    onMuscleGroupChange(muscleGroup === selectedMuscleGroup ? null : muscleGroup);
+  };
+
+  const clearAllFilters = () => {
+    onCategoryChange(null);
+    onDifficultyChange(null);
+    onMuscleGroupChange(null);
+    onSearch("");
+    setSearchQuery("");
+  };
+
+  const activeFilterCount = 
+    (selectedCategoryId ? 1 : 0) + 
+    (selectedDifficulty ? 1 : 0) + 
+    (selectedMuscleGroup ? 1 : 0);
 
   return (
     <div>
@@ -54,15 +100,109 @@ export default function ExerciseFilters({
             />
             <button type="submit" className="hidden">Search</button>
           </form>
-          <Button 
-            variant="outline" 
-            className="inline-flex justify-center w-full rounded-md border border-slate-300 shadow-sm px-4 py-2 bg-white text-sm font-medium text-slate-700 hover:bg-slate-50"
-          >
-            <FilterIcon className="h-4 w-4 mr-1" />
-            Filter
-          </Button>
+          
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="relative">
+                <FilterIcon className="h-4 w-4 mr-1" />
+                Filters
+                {activeFilterCount > 0 && (
+                  <Badge variant="secondary" className="ml-1 text-xs h-5 min-w-5 px-1 absolute -top-2 -right-2">
+                    {activeFilterCount}
+                  </Badge>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="w-56">
+              <DropdownMenuLabel>Filter Exercises</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-slate-500">Difficulty</DropdownMenuLabel>
+                {DIFFICULTIES.map((difficulty) => (
+                  <DropdownMenuItem 
+                    key={difficulty} 
+                    className={`${selectedDifficulty === difficulty ? 'bg-slate-100' : ''} cursor-pointer`}
+                    onClick={() => handleDifficultySelect(difficulty)}
+                  >
+                    {difficulty}
+                    {selectedDifficulty === difficulty && (
+                      <span className="ml-auto text-xs text-slate-500">✓</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuGroup>
+                <DropdownMenuLabel className="text-xs text-slate-500">Muscle Group</DropdownMenuLabel>
+                {MUSCLE_GROUPS.map((muscleGroup) => (
+                  <DropdownMenuItem 
+                    key={muscleGroup} 
+                    className={`${selectedMuscleGroup === muscleGroup ? 'bg-slate-100' : ''} cursor-pointer`}
+                    onClick={() => handleMuscleGroupSelect(muscleGroup)}
+                  >
+                    {muscleGroup}
+                    {selectedMuscleGroup === muscleGroup && (
+                      <span className="ml-auto text-xs text-slate-500">✓</span>
+                    )}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
+              
+              <DropdownMenuSeparator />
+              
+              <DropdownMenuItem 
+                className="text-red-500 cursor-pointer" 
+                onClick={clearAllFilters}
+              >
+                Clear all filters
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
+      {/* Active filters display */}
+      {activeFilterCount > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          <div className="text-sm text-slate-500">Active filters:</div>
+          {selectedCategoryId && categories && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              Category: {categories.find((c: ExerciseCategory) => c.id === selectedCategoryId)?.name}
+              <button 
+                className="ml-1 text-xs text-slate-500 hover:text-slate-700" 
+                onClick={() => onCategoryChange(null)}
+              >
+                ✕
+              </button>
+            </Badge>
+          )}
+          {selectedDifficulty && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              Difficulty: {selectedDifficulty}
+              <button 
+                className="ml-1 text-xs text-slate-500 hover:text-slate-700" 
+                onClick={() => onDifficultyChange(null)}
+              >
+                ✕
+              </button>
+            </Badge>
+          )}
+          {selectedMuscleGroup && (
+            <Badge variant="outline" className="flex items-center gap-1">
+              Muscle Group: {selectedMuscleGroup}
+              <button 
+                className="ml-1 text-xs text-slate-500 hover:text-slate-700" 
+                onClick={() => onMuscleGroupChange(null)}
+              >
+                ✕
+              </button>
+            </Badge>
+          )}
+        </div>
+      )}
 
       {/* Category pills */}
       <div className="flex flex-wrap gap-2 mb-6">
