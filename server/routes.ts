@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import express from "express";
-import { register, login, authenticateToken } from "./auth";
+import { setupAuth } from "./auth";
 import {
   exerciseFilterSchema,
   insertDietPlanSchema,
@@ -21,55 +21,14 @@ import { format, startOfDay, endOfDay, parseISO, addDays } from "date-fns";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Set up authentication
+  setupAuth(app);
+  
   // Base API route prefix
   const apiRouter = express.Router();
   app.use("/api", apiRouter);
 
-  // Auth routes
-  apiRouter.post("/auth/register", async (req, res) => {
-    try {
-      const userData = insertUserSchema.parse(req.body);
-      const existingUser = await storage.getUserByUsername(userData.username);
-      
-      if (existingUser) {
-        return res.status(400).json({ message: "Username already exists" });
-      }
-      
-      const user = await storage.createUser(userData);
-      // Don't return the password
-      const { password, ...userWithoutPassword } = user;
-      
-      res.status(201).json(userWithoutPassword);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ message: error.errors });
-      }
-      res.status(500).json({ message: "Could not create user" });
-    }
-  });
-
-  apiRouter.post("/auth/login", async (req, res) => {
-    try {
-      const { username, password } = req.body;
-      
-      if (!username || !password) {
-        return res.status(400).json({ message: "Username and password are required" });
-      }
-      
-      const user = await storage.getUserByUsername(username);
-      
-      if (!user || user.password !== password) {
-        return res.status(401).json({ message: "Invalid credentials" });
-      }
-      
-      // Don't return the password
-      const { password: _, ...userWithoutPassword } = user;
-      
-      res.status(200).json(userWithoutPassword);
-    } catch (error) {
-      res.status(500).json({ message: "Could not login" });
-    }
-  });
+  // Auth routes are handled by setupAuth function
 
   // User routes
   apiRouter.get("/users/:id", async (req, res) => {
@@ -87,6 +46,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(200).json(userWithoutPassword);
     } catch (error) {
       res.status(500).json({ message: "Could not retrieve user" });
+    }
+  });
+  
+  // Update user profile
+  apiRouter.put("/users/:id", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      const userUpdateData = insertUserSchema.partial().omit({ password: true }).parse(req.body);
+      const updatedUser = await storage.updateUser(userId, userUpdateData);
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Don't return the password
+      const { password, ...userWithoutPassword } = updatedUser;
+      
+      res.status(200).json(userWithoutPassword);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors });
+      }
+      res.status(500).json({ message: "Could not update user" });
     }
   });
   
@@ -852,6 +840,111 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Water intake routes
+  apiRouter.get("/users/:userId/water-intakes", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      const date = req.query.date ? new Date(req.query.date as string) : undefined;
+      const waterIntakes = await storage.getWaterIntakes(userId, date);
+      res.status(200).json(waterIntakes);
+    } catch (error) {
+      res.status(500).json({ message: "Could not retrieve water intakes" });
+    }
+  });
+
+  apiRouter.get("/users/:userId/water-intake-for-date", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.userId);
+      
+      if (!req.query.date) {
+        return res.status(400).json({ message: "Date is required" });
+      }
+      
+      const date = new Date(req.query.date as string);
+      const waterIntake = await storage.getWaterIntakeForDate(userId, date);
+      
+      if (!waterIntake) {
+        return res.status(404).json({ message: "Water intake not found for the specified date" });
+      }
+      
+      res.status(200).json(waterIntake);
+    } catch (error) {
+      res.status(500).json({ message: "Could not retrieve water intake" });
+    }
+  });
+
+  apiRouter.post("/water-intakes", async (req, res) => {
+    try {
+      const waterIntakeData = {
+        userId: req.body.userId,
+        date: req.body.date,
+        amount: req.body.amount
+      };
+      
+      // Check if there is already an entry for this date
+      const existingIntake = req.body.date ? 
+        await storage.getWaterIntakeForDate(waterIntakeData.userId, new Date(waterIntakeData.date)) : 
+        undefined;
+      
+      let result;
+      
+      if (existingIntake) {
+        // Update existing entry
+        const updatedAmount = existingIntake.amount + waterIntakeData.amount;
+        result = await storage.updateWaterIntake(existingIntake.id, { amount: updatedAmount });
+      } else {
+        // Create new entry
+        result = await storage.createWaterIntake(waterIntakeData);
+      }
+      
+      res.status(201).json(result);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors });
+      }
+      console.error("Error creating water intake:", error);
+      res.status(500).json({ message: "Could not create water intake" });
+    }
+  });
+
+  apiRouter.put("/water-intakes/:id", async (req, res) => {
+    try {
+      const intakeId = parseInt(req.params.id);
+      const intakeData = {
+        amount: req.body.amount
+      };
+      
+      const updatedIntake = await storage.updateWaterIntake(intakeId, intakeData);
+      
+      if (!updatedIntake) {
+        return res.status(404).json({ message: "Water intake not found" });
+      }
+      
+      res.status(200).json(updatedIntake);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: error.errors });
+      }
+      res.status(500).json({ message: "Could not update water intake" });
+    }
+  });
+
+  apiRouter.delete("/water-intakes/:id", async (req, res) => {
+    try {
+      const intakeId = parseInt(req.params.id);
+      const success = await storage.deleteWaterIntake(intakeId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Water intake not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Could not delete water intake" });
+    }
+  });
+
+  // Let the setupVite and serveStatic functions handle client routes
   const httpServer = createServer(app);
   return httpServer;
 }

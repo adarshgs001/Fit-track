@@ -9,6 +9,15 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
+  // New profile fields
+  weight: real("weight"), // in kg
+  height: real("height"), // in cm
+  age: integer("age"), 
+  gender: text("gender"), // Male, Female, Non-binary, Prefer not to say
+  fitnessGoal: text("fitness_goal"), // Weight Loss, Muscle Gain, Maintenance, Endurance, Strength, etc.
+  bodyFatPercentage: real("body_fat_percentage"),
+  muscleMassPercentage: real("muscle_mass_percentage"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -16,6 +25,14 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   name: true,
   email: true,
+  // Make new fields optional
+  weight: true,
+  height: true,
+  age: true,
+  gender: true,
+  fitnessGoal: true,
+  bodyFatPercentage: true,
+  muscleMassPercentage: true,
 });
 
 // Exercise categories
@@ -39,6 +56,9 @@ export const exercises = pgTable("exercises", {
   instructions: text("instructions").notNull(),
   imageUrl: text("image_url"),
   videoUrl: text("video_url"),
+  caloriesBurnedPerMinute: integer("calories_burned_per_minute"),
+  equipment: text("equipment"),
+  recommendedWeightRanges: jsonb("recommended_weight_ranges"), // beginner, intermediate, advanced weight ranges
 });
 
 export const insertExerciseSchema = createInsertSchema(exercises).pick({
@@ -50,6 +70,9 @@ export const insertExerciseSchema = createInsertSchema(exercises).pick({
   instructions: true,
   imageUrl: true,
   videoUrl: true,
+  caloriesBurnedPerMinute: true,
+  equipment: true,
+  recommendedWeightRanges: true,
 });
 
 // Workout plans
@@ -165,6 +188,8 @@ export const meals = pgTable("meals", {
   recipe: text("recipe"),
   ingredients: text("ingredients"),
   date: date("date").notNull(),
+  time: text("time").default("12:00"), // time of day in HH:MM format
+  notes: text("notes"), // any additional meal notes
   completed: boolean("completed").notNull().default(false),
 });
 
@@ -181,6 +206,8 @@ export const insertMealSchema = createInsertSchema(meals).pick({
   recipe: true,
   ingredients: true,
   date: true,
+  time: true,
+  notes: true,
   completed: true,
 });
 
@@ -231,6 +258,24 @@ export type InsertMeal = z.infer<typeof insertMealSchema>;
 
 export type ProgressEntry = typeof progressEntries.$inferSelect;
 export type InsertProgressEntry = z.infer<typeof insertProgressEntrySchema>;
+
+// Water intake tracking
+export const waterIntakes = pgTable("water_intakes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  date: date("date").notNull(),
+  amount: integer("amount").notNull(), // in milliliters
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertWaterIntakeSchema = createInsertSchema(waterIntakes).pick({
+  userId: true,
+  date: true,
+  amount: true,
+});
+
+export type WaterIntake = typeof waterIntakes.$inferSelect;
+export type InsertWaterIntake = z.infer<typeof insertWaterIntakeSchema>;
 
 // Validation schemas
 export const exerciseFilterSchema = z.object({

@@ -1,124 +1,124 @@
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import { User, InsertUser } from '../shared/schema';
-import { storage } from './storage';
+import passport from "passport";
+import { Strategy as LocalStrategy } from "passport-local";
+import { Express } from "express";
+import session from "express-session";
+import { scrypt, randomBytes, timingSafeEqual } from "crypto";
+import { promisify } from "util";
+import { storage } from "./storage";
+import { User as SelectUser } from "@shared/schema";
 
-// Secret key for JWT signing - in production, this would be in environment variables
-const JWT_SECRET = 'your-secret-key-f1ttr4ck-3xp3rt-m0d3'; // Replace with a proper secure key in production
-
-// Number of salt rounds for bcrypt
-const SALT_ROUNDS = 10;
-
-export interface AuthResponse {
-  user: Omit<User, 'password'>;
-  token: string;
+declare global {
+  namespace Express {
+    interface User extends SelectUser {}
+  }
 }
 
-export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, SALT_ROUNDS);
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString("hex");
+  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${buf.toString("hex")}.${salt}`;
 }
 
-export async function comparePasswords(plainPassword: string, hashedPassword: string): Promise<boolean> {
-  return bcrypt.compare(plainPassword, hashedPassword);
+async function comparePasswords(supplied: string, stored: string) {
+  const [hashed, salt] = stored.split(".");
+  const hashedBuf = Buffer.from(hashed, "hex");
+  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
+  return timingSafeEqual(hashedBuf, suppliedBuf);
 }
 
-export function generateToken(user: User): string {
-  const payload = {
-    id: user.id,
-    username: user.username,
-    email: user.email
+export function setupAuth(app: Express) {
+  const sessionSettings: session.SessionOptions = {
+    secret: process.env.SESSION_SECRET || 'fitness-app-development-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    },
+    store: storage.sessionStore
   };
-  
-  // Set token to expire in 24 hours
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
-}
 
-export function verifyToken(token: string): any {
-  try {
-    return jwt.verify(token, JWT_SECRET);
-  } catch (error) {
-    throw new Error('Invalid token');
-  }
-}
+  app.set("trust proxy", 1);
+  app.use(session(sessionSettings));
+  app.use(passport.initialize());
+  app.use(passport.session());
 
-export async function register(userData: InsertUser): Promise<AuthResponse> {
-  // Check if user already exists
-  const existingUser = await storage.getUserByUsername(userData.username);
-  if (existingUser) {
-    throw new Error('Username already exists');
-  }
-  
-  // Hash the password
-  const hashedPassword = await hashPassword(userData.password);
-  
-  // Create user with hashed password
-  const user = await storage.createUser({
-    ...userData,
-    password: hashedPassword
+  passport.use(
+    new LocalStrategy(async (username, password, done) => {
+      try {
+        const user = await storage.getUserByUsername(username);
+        if (!user || !(await comparePasswords(password, user.password))) {
+          return done(null, false);
+        } else {
+          return done(null, user);
+        }
+      } catch (error) {
+        return done(error);
+      }
+    }),
+  );
+
+  passport.serializeUser((user, done) => done(null, user.id));
+  passport.deserializeUser(async (id: number, done) => {
+    try {
+      const user = await storage.getUser(id);
+      done(null, user);
+    } catch (error) {
+      done(error);
+    }
+  });
+
+  app.post("/api/auth/register", async (req, res, next) => {
+    try {
+      const existingUser = await storage.getUserByUsername(req.body.username);
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const hashedPassword = await hashPassword(req.body.password);
+      const user = await storage.createUser({
+        ...req.body,
+        password: hashedPassword,
+      });
+
+      req.login(user, (err) => {
+        if (err) return next(err);
+        return res.status(201).json(user);
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: Error | null, user: Express.User | false, info: { message: string }) => {
+      if (err) return next(err);
+      if (!user) return res.status(401).json({ error: "Invalid username or password" });
+      
+      req.login(user, (err) => {
+        if (err) return next(err);
+        return res.status(200).json(user);
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/auth/logout", (req, res, next) => {
+    req.logout((err) => {
+      if (err) return next(err);
+      res.sendStatus(200);
+    });
+  });
+
+  app.get("/api/auth/user", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
+    res.json(req.user);
   });
   
-  // Generate JWT token
-  const token = generateToken(user);
-  
-  // Remove password from returned user object
-  const { password, ...userWithoutPassword } = user;
-  
-  return {
-    user: userWithoutPassword,
-    token
-  };
-}
-
-export async function login(username: string, password: string): Promise<AuthResponse> {
-  // Find user by username
-  const user = await storage.getUserByUsername(username);
-  
-  if (!user) {
-    throw new Error('Invalid username or password');
-  }
-  
-  // Compare passwords
-  const isPasswordValid = await comparePasswords(password, user.password);
-  
-  if (!isPasswordValid) {
-    throw new Error('Invalid username or password');
-  }
-  
-  // Generate JWT token
-  const token = generateToken(user);
-  
-  // Remove password from returned user object
-  const { password: _, ...userWithoutPassword } = user;
-  
-  return {
-    user: userWithoutPassword,
-    token
-  };
-}
-
-// Middleware for Express to verify JWT token
-export function authenticateToken(req: any, res: any, next: any) {
-  const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN format
-  
-  if (!token) {
-    return res.status(401).json({ message: 'Access token required' });
-  }
-  
-  try {
-    const decoded = verifyToken(token);
-    req.user = decoded;
-    next();
-  } catch (error) {
-    return res.status(403).json({ message: 'Invalid or expired token' });
-  }
-}
-
-// For use in client-side auth context
-export interface AuthContextType {
-  isAuthenticated: boolean;
-  user: Omit<User, 'password'> | null;
-  login: (username: string, password: string) => Promise<void>;
-  logout: () => void;
-  register: (userData: InsertUser) => Promise<void>;
+  // Fallback for compatibility
+  app.get("/api/user", (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ error: "Not authenticated" });
+    res.json(req.user);
+  });
 }
