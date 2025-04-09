@@ -11,29 +11,30 @@ import AIRecommendations from "@/components/dashboard/ai-recommendations";
 import GoalSetting from "@/components/dashboard/goal-setting";
 import CommunityChallenges from "@/components/dashboard/community-challenges";
 import SubscriptionStatus from "@/components/dashboard/subscription-status";
-import { useQuery } from "@tanstack/react-query";
+import { useUser, useProgress, useDiet, useWorkout } from "@/contexts/AppContext";
 
 interface DashboardProps {
   setActiveTab: (tab: string) => void;
 }
 
 export default function Dashboard({ setActiveTab }: DashboardProps) {
-  // Hard-coded user ID for demo purposes
-  const userId = 1;
+  // Use our context hooks instead of direct API calls
+  const { userData, isLoading: isLoadingUser } = useUser();
+  const { getProgressSummary } = useProgress();
+  const { getCaloriesConsumedToday } = useDiet();
+  const { recentWorkouts, upcomingWorkouts } = useWorkout();
+  
+  // Get stats from progress context
+  const progressSummary = getProgressSummary();
 
   useEffect(() => {
     setActiveTab("dashboard");
   }, [setActiveTab]);
 
-  const { data: stats, isLoading: isLoadingStats } = useQuery({
-    queryKey: [`/api/users/${userId}/stats`],
-    staleTime: 60000, // 1 minute
-  });
-
   return (
     <div className="py-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
       <h1 className="text-2xl font-semibold">
-        Welcome back, <span>Alex</span>!
+        Welcome back, <span>{userData?.name || "User"}</span>!
       </h1>
       
       {/* Stats overview */}
@@ -41,7 +42,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         <StatCard
           icon={<WorkoutIcon className="h-5 w-5 text-primary" />}
           title="Workouts This Week"
-          value={isLoadingStats ? "..." : stats?.workoutsThisWeek || 0}
+          value={isLoadingUser ? "..." : userData?.workoutsThisWeek !== undefined ? userData.workoutsThisWeek : progressSummary.workoutsCompleted}
           change={{ value: "25%", isPositive: true }}
           iconBgColor="bg-indigo-100"
         />
@@ -49,7 +50,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         <StatCard
           icon={<FireIcon className="h-5 w-5 text-secondary" />}
           title="Calories Burned"
-          value={isLoadingStats ? "..." : stats?.caloriesBurned || 0}
+          value={isLoadingUser ? "..." : progressSummary.caloriesBurned}
           change={{ value: "12%", isPositive: true }}
           iconBgColor="bg-green-100"
         />
@@ -57,7 +58,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         <StatCard
           icon={<DietIcon className="h-5 w-5 text-accent" />}
           title="Meal Plan Adherence"
-          value={isLoadingStats ? "..." : `${stats?.mealAdherence || 0}%`}
+          value={isLoadingUser ? "..." : `${userData?.mealAdherence !== undefined ? userData.mealAdherence : 0}%`}
           change={{ value: "5%", isPositive: true }}
           iconBgColor="bg-amber-100"
         />
@@ -65,7 +66,7 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         <StatCard
           icon={<MedalIcon className="h-5 w-5 text-purple-500" />}
           title="Goal Progress"
-          value={isLoadingStats ? "..." : `${stats?.goalProgress || 0}%`}
+          value={isLoadingUser ? "..." : `${userData?.goalProgress !== undefined ? userData.goalProgress : 0}%`}
           change={{ value: "8%", isPositive: true }}
           iconBgColor="bg-purple-100"
         />
@@ -73,11 +74,11 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
 
       {/* Top row - Main workout and nutrition components */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Recent workouts */}
-        <RecentWorkouts userId={userId} />
+        {/* Recent workouts - using userId=1 for now until we update the component */}
+        <RecentWorkouts userId={1} />
         
-        {/* Upcoming workouts */}
-        <UpcomingWorkouts userId={userId} />
+        {/* Upcoming workouts - using userId=1 for now until we update the component */}
+        <UpcomingWorkouts userId={1} />
       </div>
 
       {/* Middle row - AI Recommendations, Tracking, Stats */}
@@ -111,8 +112,8 @@ export default function Dashboard({ setActiveTab }: DashboardProps) {
         </div>
       </div>
 
-      {/* Nutrition overview */}
-      <NutritionOverview userId={userId} />
+      {/* Nutrition overview - use context-based data */}
+      <NutritionOverview />
     </div>
   );
 }

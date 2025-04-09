@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { User, Settings, Edit, Camera } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { User as UserIcon, Settings, Edit, Camera, LogOut, Loader2 } from "lucide-react";
 import ProgressChart from "@/components/progress/progress-chart";
+import { useUser } from "@/contexts/UserContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProfileProps {
   setActiveTab: (tab: string) => void;
@@ -20,18 +23,130 @@ export default function Profile({ setActiveTab }: ProfileProps) {
   useEffect(() => {
     setActiveTab("profile");
   }, [setActiveTab]);
+  
+  const { logout, updateProfile } = useUser();
+  const { toast } = useToast();
+  const [isUpdating, setIsUpdating] = useState(false);
 
+  // Define user and stats types to fix TypeScript errors
+  interface UserType {
+    id: number;
+    name: string;
+    username: string;
+    email: string;
+    weight: number | null;
+    height: number | null;
+    age: number | null;
+    gender: string | null;
+    fitnessGoal: string | null;
+    bodyFatPercentage: number | null;
+    muscleMassPercentage: number | null;
+    createdAt: Date;
+  }
+  
+  interface StatsType {
+    workoutsCompleted: number;
+    currentStreak: number;
+    longestStreak: number;
+    totalCaloriesBurned: number;
+    workoutsThisWeek: number;
+    goalProgress: number;
+    mealAdherence: number;
+    caloriesBurned: number;
+  }
+  
+  // Profile form state
+  interface ProfileFormData {
+    name: string;
+    username: string;
+    email: string;
+    weight: number | null;
+    height: number | null;
+    age: number | null;
+    gender: string | null;
+    fitnessGoal: string | null;
+    bodyFatPercentage: number | null;
+    muscleMassPercentage: number | null;
+  }
+
+  // Get current user from useUser context
+  const { userData, isLoading: isUserContextLoading } = useUser();
+  const userId = userData?.id || 1;
+  
   // Fetch user data
-  const { data: user, isLoading: isLoadingUser } = useQuery({
-    queryKey: ['/api/users/1'],
+  const { data: user, isLoading: isLoadingUser } = useQuery<UserType>({
+    queryKey: [`/api/users/${userId}`],
     staleTime: 60000, // 1 minute
   });
 
   // Fetch user stats
-  const { data: stats, isLoading: isLoadingStats } = useQuery({
-    queryKey: ['/api/users/1/stats'],
+  const { data: stats, isLoading: isLoadingStats } = useQuery<StatsType>({
+    queryKey: [`/api/users/${userId}/stats`],
     staleTime: 60000, // 1 minute
   });
+  
+  // Form state and refs
+  const [formData, setFormData] = useState<ProfileFormData | null>(null);
+  const nameRef = React.useRef<HTMLInputElement>(null);
+  const usernameRef = React.useRef<HTMLInputElement>(null);
+  const emailRef = React.useRef<HTMLInputElement>(null);
+  const heightRef = React.useRef<HTMLInputElement>(null);
+  const weightRef = React.useRef<HTMLInputElement>(null);
+  const ageRef = React.useRef<HTMLInputElement>(null);
+  const bodyFatRef = React.useRef<HTMLInputElement>(null);
+  const muscleMassRef = React.useRef<HTMLInputElement>(null);
+  const [gender, setGender] = useState<string | null>(null);
+  const [fitnessGoal, setFitnessGoal] = useState<string | null>(null);
+  
+  // Initialize form data when user data is loaded
+  useEffect(() => {
+    if (user) {
+      setGender(user.gender);
+      setFitnessGoal(user.fitnessGoal);
+    }
+  }, [user]);
+  
+  // Handle form submission
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    
+    if (!user) return;
+    
+    setIsUpdating(true);
+    
+    try {
+      // Create profile data object from form fields
+      const profileData: Partial<ProfileFormData> = {
+        name: nameRef.current?.value || user.name,
+        username: usernameRef.current?.value || user.username,
+        email: emailRef.current?.value || user.email,
+        height: heightRef.current?.value ? parseFloat(heightRef.current.value) : user.height,
+        weight: weightRef.current?.value ? parseFloat(weightRef.current.value) : user.weight,
+        age: ageRef.current?.value ? parseInt(ageRef.current.value) : user.age,
+        gender,
+        fitnessGoal,
+        bodyFatPercentage: bodyFatRef.current?.value ? parseFloat(bodyFatRef.current.value) : user.bodyFatPercentage,
+        muscleMassPercentage: muscleMassRef.current?.value ? parseFloat(muscleMassRef.current.value) : user.muscleMassPercentage,
+      };
+      
+      // Update profile
+      await updateProfile(profileData);
+      
+      toast({
+        title: "Profile updated",
+        description: "Your profile has been successfully updated.",
+      });
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      toast({
+        title: "Update failed",
+        description: "An error occurred while updating your profile.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
+  };
 
   if (isLoadingUser || isLoadingStats) {
     return <div className="flex justify-center items-center h-screen">Loading...</div>;
@@ -135,7 +250,7 @@ export default function Profile({ setActiveTab }: ProfileProps) {
                 <CardContent>
                   <div className="h-[300px]">
                     <ProgressChart 
-                      userId={1} 
+                      userId={userId} 
                       title="Weight Progress" 
                       dataKey="weight" 
                     />
@@ -150,7 +265,7 @@ export default function Profile({ setActiveTab }: ProfileProps) {
                 <CardContent>
                   <div className="h-[300px]">
                     <ProgressChart 
-                      userId={1} 
+                      userId={userId} 
                       title="Body Fat" 
                       dataKey="bodyFat" 
                     />
@@ -215,39 +330,129 @@ export default function Profile({ setActiveTab }: ProfileProps) {
                   <CardDescription>Update your profile information</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input id="name" defaultValue={user?.name} />
+                  <form onSubmit={handleSubmit}>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="name">Full Name</Label>
+                        <Input id="name" defaultValue={user?.name} ref={nameRef} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="username">Username</Label>
+                        <Input id="username" defaultValue={user?.username} ref={usernameRef} />
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Username</Label>
-                      <Input id="username" defaultValue={user?.username} />
+                    <div className="space-y-2 mt-4">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" type="email" defaultValue={user?.email} ref={emailRef} />
                     </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input id="email" type="email" defaultValue={user?.email} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="bio">Bio</Label>
-                    <Textarea 
-                      id="bio" 
-                      defaultValue="Fitness enthusiast focused on building strength and endurance. I love running and weightlifting. Looking to improve my overall fitness and health."
-                      rows={4}
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="height">Height (cm)</Label>
-                      <Input id="height" type="number" defaultValue="178" />
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="age">Age</Label>
+                        <Input 
+                          id="age" 
+                          type="number" 
+                          defaultValue={user?.age || ''} 
+                          ref={ageRef} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="gender">Gender</Label>
+                        <Select defaultValue={user?.gender || ''} onValueChange={(value) => setGender(value || null)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Male">Male</SelectItem>
+                            <SelectItem value="Female">Female</SelectItem>
+                            <SelectItem value="Non-binary">Non-binary</SelectItem>
+                            <SelectItem value="Prefer not to say">Prefer not to say</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="weight">Weight (kg)</Label>
-                      <Input id="weight" type="number" defaultValue="75" />
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="height">Height (cm)</Label>
+                        <Input 
+                          id="height" 
+                          type="number" 
+                          defaultValue={user?.height || ''} 
+                          ref={heightRef} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="weight">Weight (kg)</Label>
+                        <Input 
+                          id="weight" 
+                          type="number" 
+                          defaultValue={user?.weight || ''} 
+                          ref={weightRef} 
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <Button className="w-full">Save Changes</Button>
+                    <div className="space-y-2 mt-4">
+                      <Label htmlFor="fitnessGoal">Fitness Goal</Label>
+                      <Select defaultValue={user?.fitnessGoal || ''} onValueChange={(value) => setFitnessGoal(value || null)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select your fitness goal" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Weight Loss">Weight Loss</SelectItem>
+                          <SelectItem value="Muscle Gain">Muscle Gain</SelectItem>
+                          <SelectItem value="Maintenance">Maintenance</SelectItem>
+                          <SelectItem value="Endurance">Endurance</SelectItem>
+                          <SelectItem value="Strength">Strength</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 mt-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="bodyFat">Body Fat (%)</Label>
+                        <Input 
+                          id="bodyFat" 
+                          type="number" 
+                          step="0.1"
+                          defaultValue={user?.bodyFatPercentage || ''} 
+                          ref={bodyFatRef} 
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="muscleMass">Muscle Mass (%)</Label>
+                        <Input 
+                          id="muscleMass" 
+                          type="number" 
+                          step="0.1"
+                          defaultValue={user?.muscleMassPercentage || ''} 
+                          ref={muscleMassRef} 
+                        />
+                      </div>
+                    </div>
+                    <Button 
+                      type="submit" 
+                      className="w-full mt-6" 
+                      disabled={isUpdating}
+                    >
+                      {isUpdating ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </Button>
+                    <div className="mt-6 pt-6 border-t">
+                      <Button 
+                        type="button"
+                        variant="destructive" 
+                        className="w-full flex items-center justify-center"
+                        onClick={logout}
+                      >
+                        <LogOut className="mr-2 h-4 w-4" />
+                        <span>Logout</span>
+                      </Button>
+                    </div>
+                  </form>
                 </CardContent>
               </Card>
             </TabsContent>
